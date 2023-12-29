@@ -1,5 +1,9 @@
 use std::net::{Ipv4Addr, SocketAddrV4, UdpSocket};
 
+use crate::message::DnsMessage;
+
+mod message;
+
 fn main() {
     let addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 2053);
     let udp_socket = UdpSocket::bind(addr).expect("Failed to bind to address");
@@ -9,10 +13,9 @@ fn main() {
     loop {
         match udp_socket.recv_from(&mut buf) {
             Ok((size, source)) => {
-                println!("Received {} bytes from {}", size, source);
-                let response = [];
+                let query = DnsMessage::parse(&buf[0..size]).unwrap();
                 udp_socket
-                    .send_to(&response, source)
+                    .send_to(&query.response().build().unwrap(), source)
                     .expect("Failed to send response");
             }
             Err(e) => {
