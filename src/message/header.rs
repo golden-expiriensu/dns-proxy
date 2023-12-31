@@ -1,7 +1,5 @@
 use packed_struct::prelude::*;
 
-pub const DNS_HEADER_SIZE: usize = 12;
-
 /// Packet Identifier (ID)	          | A random ID assigned to query packets. Response packets must reply with the same ID.
 /// Query/Response Indicator (QR)	  | `Response` for a reply packet, `Query` for a question packet.
 /// Operation Code (OPCODE)	          | Specifies the kind of query in a message.
@@ -15,9 +13,9 @@ pub const DNS_HEADER_SIZE: usize = 12;
 /// Answer Record Count (ANCOUNT)	  | Number of records in the Answer section.
 /// Authority Record Count (NSCOUNT)  | Number of records in the Authority section.
 /// Additional Record Count (ARCOUNT) | Number of records in the Additional section.
-#[derive(PackedStruct)]
-#[packed_struct(endian = "lsb", bit_numbering = "msb0")]
-pub struct DnsHeader {
+#[derive(Debug, PackedStruct)]
+#[packed_struct(size_bytes = 12, bit_numbering = "msb0", endian = "lsb")]
+pub struct Header {
     #[packed_field(bits = "0..=15")]
     id: u16,
     #[packed_field(bits = "16", ty = "enum")]
@@ -81,9 +79,18 @@ pub enum RecursionAvailable {
     Yes = 1,
 }
 
-impl DnsHeader {
-    pub fn reply(&self) -> DnsHeader {
-        DnsHeader {
+pub const DNS_HEADER_SIZE: usize = 12;
+
+impl Header {
+    pub fn parse(query: &[u8]) -> Result<Self, PackingError> {
+        if query.len() < DNS_HEADER_SIZE {
+            return Err(PackingError::BufferTooSmall);
+        }
+        Ok(Header::unpack_from_slice(&query[..DNS_HEADER_SIZE])?)
+    }
+
+    pub fn clone_as_response(&self) -> Header {
+        Header {
             id: self.id,
             qr: Indicator::Response,
             opcode: 0.into(),
@@ -93,7 +100,7 @@ impl DnsHeader {
             ra: RecursionAvailable::No,
             z: 0.into(),
             rcode: 0.into(),
-            qdcount: 0,
+            qdcount: self.qdcount,
             ancount: 0,
             nscount: 0,
             arcount: 0,

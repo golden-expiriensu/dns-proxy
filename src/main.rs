@@ -1,6 +1,6 @@
 use std::net::{Ipv4Addr, SocketAddrV4, UdpSocket};
 
-use crate::message::DnsMessage;
+use crate::message::Message;
 
 mod message;
 
@@ -13,7 +13,7 @@ fn main() {
     loop {
         match udp_socket.recv_from(&mut buf) {
             Ok((size, source)) => {
-                let query = DnsMessage::parse(&buf[0..size]).unwrap();
+                let query = Message::parse(&buf[0..size]).unwrap();
                 udp_socket
                     .send_to(&query.response().build().unwrap(), source)
                     .expect("Failed to send response");
