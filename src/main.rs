@@ -13,9 +13,10 @@ fn main() {
     loop {
         match udp_socket.recv_from(&mut buf) {
             Ok((size, source)) => {
+                // TODO: don't panic if error
                 let query = Message::unpack(&buf[0..size]).unwrap();
                 udp_socket
-                    .send_to(&query.response().pack().unwrap(), source)
+                    .send_to(&query.resolve().unwrap().pack().unwrap(), source)
                     .expect("Failed to send response");
             }
             Err(e) => {

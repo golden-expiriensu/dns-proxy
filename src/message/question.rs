@@ -7,9 +7,9 @@ use super::{labels::Labels, rr};
 
 #[derive(Debug, PartialEq)]
 pub struct Question {
-    domain: Labels,
-    qtype: rr::Type,
-    qclass: rr::Class,
+    pub domain: Labels,
+    pub qtype: rr::Type,
+    pub qclass: rr::Class,
 }
 
 const METADATA_SIZE: usize = size_of::<rr::Type>() + size_of::<rr::Class>();
@@ -36,11 +36,11 @@ impl Question {
         self.domain.pack(&mut buf[..self.domain.len()])?;
 
         let mut cursor = Cursor::new(vec![0u8; METADATA_SIZE]);
-        cursor.write_u16::<BigEndian>(self.qtype.clone().into())?;
-        cursor.write_u16::<BigEndian>(self.qclass.clone().into())?;
+        cursor.write_u16::<BigEndian>(self.qtype.into())?;
+        cursor.write_u16::<BigEndian>(self.qclass.into())?;
 
-        let dl = self.domain.len();
-        (&mut buf[dl..dl + METADATA_SIZE]).copy_from_slice(cursor.get_ref());
+        let len = self.domain.len();
+        (&mut buf[len..len + METADATA_SIZE]).copy_from_slice(cursor.get_ref());
         Ok(())
     }
 

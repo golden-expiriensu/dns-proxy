@@ -54,6 +54,10 @@ impl Labels {
             .sum::<usize>()
             + TERMINATOR_BYTE_SIZE
     }
+
+    pub fn to_string(&self) -> String {
+        self.0.join(".")
+    }
 }
 
 impl Clone for Labels {

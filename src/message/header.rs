@@ -13,35 +13,35 @@ use packed_struct::prelude::*;
 /// Answer Record Count (ANCOUNT)	  | Number of records in the Answer section.
 /// Authority Record Count (NSCOUNT)  | Number of records in the Authority section.
 /// Additional Record Count (ARCOUNT) | Number of records in the Additional section.
-#[derive(Debug, PackedStruct)]
+#[derive(Clone, Copy, Debug, PackedStruct)]
 #[packed_struct(size_bytes = 12, bit_numbering = "msb0", endian = "lsb")]
 pub struct Header {
     #[packed_field(bits = "0..=15")]
     id: u16,
     #[packed_field(bits = "16", ty = "enum")]
-    qr: Indicator,
+    pub qr: Indicator,
     #[packed_field(bits = "17..=20")]
-    opcode: Integer<u8, packed_bits::Bits<4>>,
+    pub opcode: Integer<u8, packed_bits::Bits<4>>,
     #[packed_field(bits = "21", ty = "enum")]
-    aa: AuthoritativeAnswer,
+    pub aa: AuthoritativeAnswer,
     #[packed_field(bits = "22", ty = "enum")]
-    tc: Truncation,
+    pub tc: Truncation,
     #[packed_field(bits = "23", ty = "enum")]
-    rd: RecursionDesired,
+    pub rd: RecursionDesired,
     #[packed_field(bits = "24", ty = "enum")]
-    ra: RecursionAvailable,
+    pub ra: RecursionAvailable,
     #[packed_field(bits = "25..=27")]
-    z: Integer<u8, packed_bits::Bits<3>>,
+    pub z: Integer<u8, packed_bits::Bits<3>>,
     #[packed_field(bits = "28..=31")]
-    rcode: Integer<u8, packed_bits::Bits<4>>,
+    pub rcode: Integer<u8, packed_bits::Bits<4>>,
     #[packed_field(bits = "32..=47")]
-    qdcount: u16,
+    pub qdcount: u16,
     #[packed_field(bits = "48..=63")]
-    ancount: u16,
+    pub ancount: u16,
     #[packed_field(bits = "64..=79")]
-    nscount: u16,
+    pub nscount: u16,
     #[packed_field(bits = "80..=95")]
-    arcount: u16,
+    pub arcount: u16,
 }
 
 /// `Response` for a reply packet, `Query` for a question packet.
@@ -87,23 +87,5 @@ impl Header {
             return Err(PackingError::BufferTooSmall);
         }
         Ok(Header::unpack_from_slice(&query[..DNS_HEADER_SIZE])?)
-    }
-
-    pub fn clone_as_response(&self) -> Header {
-        Header {
-            id: self.id,
-            qr: Indicator::Response,
-            opcode: 0.into(),
-            aa: AuthoritativeAnswer::No,
-            tc: Truncation::No,
-            rd: RecursionDesired::No,
-            ra: RecursionAvailable::No,
-            z: 0.into(),
-            rcode: 0.into(),
-            qdcount: self.qdcount,
-            ancount: 0,
-            nscount: 0,
-            arcount: 0,
-        }
     }
 }
