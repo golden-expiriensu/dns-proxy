@@ -32,8 +32,8 @@ pub struct Header {
     pub ra: RecursionAvailable,
     #[packed_field(bits = "25..=27")]
     pub z: Integer<u8, packed_bits::Bits<3>>,
-    #[packed_field(bits = "28..=31")]
-    pub rcode: Integer<u8, packed_bits::Bits<4>>,
+    #[packed_field(bits = "28..=31", ty = "enum")]
+    pub rcode: ResponseCode,
     #[packed_field(bits = "32..=47")]
     pub qdcount: u16,
     #[packed_field(bits = "48..=63")]
@@ -77,6 +77,12 @@ pub enum RecursionDesired {
 pub enum RecursionAvailable {
     No = 0,
     Yes = 1,
+}
+
+#[derive(PrimitiveEnum, Clone, Copy, Debug)]
+pub enum ResponseCode {
+    NoError = 0,
+    NotImplemented = 4,
 }
 
 pub const DNS_HEADER_SIZE: usize = 12;

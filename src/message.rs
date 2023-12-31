@@ -3,7 +3,7 @@ use packed_struct::prelude::*;
 
 use self::{
     answer::Answer,
-    header::{Header, Indicator, DNS_HEADER_SIZE},
+    header::{Header, Indicator, ResponseCode, DNS_HEADER_SIZE},
     question::Question,
 };
 
@@ -57,6 +57,10 @@ impl Message {
         let mut header = self.header.clone();
         header.qr = Indicator::Response;
         header.ancount = header.qdcount;
+        header.rcode = match header.opcode.into() {
+            0 => ResponseCode::NoError,
+            _ => ResponseCode::NotImplemented,
+        };
         Ok(Message {
             header,
             question: self.question.clone(),
