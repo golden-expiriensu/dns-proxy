@@ -6,7 +6,9 @@ use self::{
     question::Question,
 };
 
+mod answer;
 mod header;
+mod labels;
 mod question;
 mod rr;
 
@@ -16,18 +18,18 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn parse(query: &[u8]) -> Result<Message> {
-        let question = Question::parse(&query[DNS_HEADER_SIZE..])?;
+    pub fn unpack(query: &[u8]) -> Result<Message> {
+        let question = Question::unpack(&query[DNS_HEADER_SIZE..])?;
         Ok(Message {
-            header: Header::parse(query)?,
+            header: Header::unpack(query)?,
             question,
         })
     }
 
-    pub fn build(&self) -> Result<Vec<u8>> {
+    pub fn pack(&self) -> Result<Vec<u8>> {
         let mut result = vec![0; DNS_HEADER_SIZE + self.question.len()];
         self.header.pack_to_slice(&mut result[..DNS_HEADER_SIZE])?;
-        self.question.build(&mut result[DNS_HEADER_SIZE..])?;
+        self.question.pack(&mut result[DNS_HEADER_SIZE..])?;
         Ok(result)
     }
 

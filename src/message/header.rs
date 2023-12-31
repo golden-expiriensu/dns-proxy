@@ -82,7 +82,7 @@ pub enum RecursionAvailable {
 pub const DNS_HEADER_SIZE: usize = 12;
 
 impl Header {
-    pub fn parse(query: &[u8]) -> Result<Self, PackingError> {
+    pub fn unpack(query: &[u8]) -> Result<Self, PackingError> {
         if query.len() < DNS_HEADER_SIZE {
             return Err(PackingError::BufferTooSmall);
         }

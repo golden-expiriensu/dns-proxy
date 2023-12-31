@@ -23,7 +23,7 @@ impl std::fmt::Display for Error {
 /// ------+-----------------------------------------
 /// A     | a host address
 #[repr(u16)]
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Type {
     A = 1,
 }
@@ -45,19 +45,11 @@ impl Into<u16> for Type {
     }
 }
 
-impl Clone for Type {
-    fn clone(&self) -> Self {
-        match self {
-            Type::A => Type::A,
-        }
-    }
-}
-
 /// CLASS  | value and meaning
 /// -------+-----------------------------------------
 /// IN     | an Internet host
 #[repr(u16)]
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Class {
     In = 1,
 }
@@ -69,14 +61,6 @@ impl TryFrom<u16> for Class {
         match value {
             1 => Ok(Class::In),
             _ => Err(Error::UnsupportedClass(value)),
-        }
-    }
-}
-
-impl Clone for Class {
-    fn clone(&self) -> Self {
-        match self {
-            Class::In => Class::In,
         }
     }
 }
