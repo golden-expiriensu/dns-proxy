@@ -4,7 +4,7 @@ use crate::message::question::BUF_LEN_INVALID_ERR;
 
 use super::{labels::Labels, question::Question, rr};
 
-use anyhow::{bail, ensure, Result};
+use anyhow::{ensure, Result};
 use byteorder::{BigEndian, WriteBytesExt};
 
 #[derive(Debug, PartialEq)]
@@ -46,7 +46,7 @@ impl Answer {
         match self.name.to_string().as_str() {
             "google.com" => addr = Ipv4Addr::new(142, 250, 188, 14),
             "codecrafters.io" => addr = Ipv4Addr::new(76, 76, 21, 21),
-            _ => bail!("Unknown domain"),
+            _ => addr = Ipv4Addr::new(8, 8, 8, 8),
         }
         self.data = addr.octets().to_vec();
         Ok(())
