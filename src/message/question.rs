@@ -5,12 +5,13 @@ use std::{
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
+use super::rr;
+
 #[derive(Debug, PartialEq)]
 pub enum ParsingError {
     InvalidDomainEncoding { at_byte: usize },
     InvalidMetadataEncoding(String),
-    UnsupportedType(u16),
-    UnsupportedClass(u16),
+    ResourceRecordError(rr::Error),
 }
 
 impl std::error::Error for ParsingError {}
@@ -24,11 +25,8 @@ impl std::fmt::Display for ParsingError {
             ParsingError::InvalidMetadataEncoding(value) => {
                 write!(f, "Invalid metadata encoding: {}", value)
             }
-            ParsingError::UnsupportedType(value) => {
-                write!(f, "Unsupported question type {}", value)
-            }
-            ParsingError::UnsupportedClass(value) => {
-                write!(f, "Unsupported question class {}", value)
+            ParsingError::ResourceRecordError(value) => {
+                write!(f, "{}", value)
             }
         }
     }
@@ -37,15 +35,15 @@ impl std::fmt::Display for ParsingError {
 #[derive(Debug, PartialEq)]
 pub struct Question {
     domain: Vec<String>,
-    qtype: QuestionType,
-    qclass: QuestionClass,
+    qtype: rr::Type,
+    qclass: rr::Class,
 }
 
 const NULL_BYTE: usize = 0x00;
 const NULL_BYTE_SIZE: usize = 1;
 
 const DOMAIN_NAME_LEN_BYTE_SIZE: usize = 1;
-const METADATA_SIZE: usize = size_of::<QuestionType>() + size_of::<QuestionClass>();
+const METADATA_SIZE: usize = size_of::<rr::Type>() + size_of::<rr::Class>();
 
 const BUFFER_TOO_SMALL_ERR: &'static str = "Buffer too small";
 
@@ -67,11 +65,13 @@ impl Question {
                     qtype: metadata
                         .read_u16::<BigEndian>()
                         .map_err(|e| ParsingError::InvalidMetadataEncoding(e.to_string()))?
-                        .try_into()?,
+                        .try_into()
+                        .map_err(|e| ParsingError::ResourceRecordError(e))?,
                     qclass: metadata
                         .read_u16::<BigEndian>()
                         .map_err(|e| ParsingError::InvalidMetadataEncoding(e.to_string()))?
-                        .try_into()?,
+                        .try_into()
+                        .map_err(|e| ParsingError::ResourceRecordError(e))?,
                 });
             }
 
@@ -131,74 +131,6 @@ impl Clone for Question {
     }
 }
 
-/// TYPE  | value and meaning
-/// ------+-----------------------------------------
-/// A     | a host address
-#[repr(u16)]
-#[derive(Debug, PartialEq)]
-pub enum QuestionType {
-    A = 1,
-}
-
-impl TryFrom<u16> for QuestionType {
-    type Error = ParsingError;
-
-    fn try_from(value: u16) -> Result<Self, Self::Error> {
-        match value {
-            1 => Ok(QuestionType::A),
-            _ => Err(ParsingError::UnsupportedType(value)),
-        }
-    }
-}
-
-impl Into<u16> for QuestionType {
-    fn into(self) -> u16 {
-        self as u16
-    }
-}
-
-impl Clone for QuestionType {
-    fn clone(&self) -> Self {
-        match self {
-            QuestionType::A => QuestionType::A,
-        }
-    }
-}
-
-/// CLASS  | value and meaning
-/// -------+-----------------------------------------
-/// IN     | an Internet host
-#[repr(u16)]
-#[derive(Debug, PartialEq)]
-pub enum QuestionClass {
-    In = 1,
-}
-
-impl TryFrom<u16> for QuestionClass {
-    type Error = ParsingError;
-
-    fn try_from(value: u16) -> Result<Self, Self::Error> {
-        match value {
-            1 => Ok(QuestionClass::In),
-            _ => Err(ParsingError::UnsupportedClass(value)),
-        }
-    }
-}
-
-impl Clone for QuestionClass {
-    fn clone(&self) -> Self {
-        match self {
-            QuestionClass::In => QuestionClass::In,
-        }
-    }
-}
-
-impl Into<u16> for QuestionClass {
-    fn into(self) -> u16 {
-        self as u16
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -209,8 +141,8 @@ mod tests {
         let question = Question::parse(question_raw).unwrap();
         assert_eq!(question_raw.len(), question.len());
         assert_eq!(question.domain, vec!["google", "com"]);
-        assert_eq!(question.qtype, QuestionType::A);
-        assert_eq!(question.qclass, QuestionClass::In);
+        assert_eq!(question.qtype, rr::Type::A);
+        assert_eq!(question.qclass, rr::Class::In);
     }
 
     #[test]
@@ -228,9 +160,9 @@ mod tests {
         let question_raw = b"\x06google\x03com\x00\x00\x01\x01\x01";
         let question = Question::parse(question_raw);
         assert_eq!(
-            Err(ParsingError::UnsupportedClass(u16::from_be_bytes([
-                0x01, 0x01
-            ]))),
+            Err(ParsingError::ResourceRecordError(
+                rr::Error::UnsupportedClass(u16::from_be_bytes([0x01, 0x01]))
+            )),
             question,
         );
     }

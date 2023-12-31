@@ -8,6 +8,7 @@ use self::{
 
 mod header;
 mod question;
+mod rr;
 
 pub struct Message {
     header: Header,
