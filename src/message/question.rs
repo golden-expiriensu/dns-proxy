@@ -53,8 +53,8 @@ impl Clone for Question {
     fn clone(&self) -> Self {
         Question {
             domain: self.domain.clone(),
-            qtype: self.qtype.clone(),
-            qclass: self.qclass.clone(),
+            qtype: self.qtype,
+            qclass: self.qclass,
         }
     }
 }

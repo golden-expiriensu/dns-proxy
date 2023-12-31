@@ -26,8 +26,8 @@ impl Answer {
     pub fn resolve(question: &Question) -> Result<Self> {
         let mut answer = Answer {
             name: question.domain.clone(),
-            atype: question.qtype.clone(),
-            aclass: question.qclass.clone(),
+            atype: question.qtype,
+            aclass: question.qclass,
             ttl: DEFAULT_TTL,
             length: 0,
             data: Vec::with_capacity(MIN_DATA_LEN),
