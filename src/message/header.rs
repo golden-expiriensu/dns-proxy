@@ -13,7 +13,7 @@ use packed_struct::prelude::*;
 /// Answer Record Count (ANCOUNT)	  | Number of records in the Answer section.
 /// Authority Record Count (NSCOUNT)  | Number of records in the Authority section.
 /// Additional Record Count (ARCOUNT) | Number of records in the Additional section.
-#[derive(Clone, Copy, Debug, PackedStruct)]
+#[derive(Clone, Copy, Debug, Default, PackedStruct)]
 #[packed_struct(size_bytes = 12, bit_numbering = "msb0", endian = "lsb")]
 pub struct Header {
     #[packed_field(bits = "0..=15")]
@@ -45,44 +45,74 @@ pub struct Header {
 }
 
 /// `Response` for a reply packet, `Query` for a question packet.
-#[derive(PrimitiveEnum, Clone, Copy, Debug)]
+#[derive(PrimitiveEnum, Clone, Copy, Debug, Default)]
 pub enum Indicator {
     Query = 0,
+    #[default]
     Response = 1,
 }
 
 /// `Yes` if the responding server "owns" the domain queried, i.e., it's authoritative.
-#[derive(PrimitiveEnum, Clone, Copy, Debug)]
+#[derive(PrimitiveEnum, Clone, Copy, Debug, Default)]
 pub enum AuthoritativeAnswer {
+    #[default]
     No = 0,
     Yes = 1,
 }
 
 /// `Yes` if the message is larger than 512 bytes. Always `No` in UDP responses.
-#[derive(PrimitiveEnum, Clone, Copy, Debug)]
+#[derive(PrimitiveEnum, Clone, Copy, Debug, Default)]
 pub enum Truncation {
+    #[default]
     No = 0,
     Yes = 1,
 }
 
 /// Sender sets this to `Yes` if the server should recursively resolve this query, `No` otherwise.
-#[derive(PrimitiveEnum, Clone, Copy, Debug)]
+#[derive(PrimitiveEnum, Clone, Copy, Debug, Default)]
 pub enum RecursionDesired {
+    #[default]
     No = 0,
     Yes = 1,
 }
 
 /// Sender sets this to `Yes` if the server supports recursive queries, `No` otherwise.
-#[derive(PrimitiveEnum, Clone, Copy, Debug)]
+#[derive(PrimitiveEnum, Clone, Copy, Debug, Default)]
 pub enum RecursionAvailable {
+    #[default]
     No = 0,
     Yes = 1,
 }
 
-#[derive(PrimitiveEnum, Clone, Copy, Debug)]
+/// Response code - this 4 bit field is set as part of responses.  The values have the following
+/// interpretation:
+///
+/// • 0 No error condition
+///
+/// • 1 Format error - The name server was unable to interpret the query.
+///
+/// • 2 Server failure - The name server was unable to process this query due to a problem with the
+///   name server.
+///
+/// • 3 Name Error - Meaningful only for responses from an authoritative name server, this code
+///   signifies that the domain name referenced in the query does not exist.
+///
+/// • 4 Not Implemented - The name server does not support the requested kind of query.
+///
+/// • 5 Refused - The name server refuses to perform the specified operation for policy reasons.  For
+///   example, a name server may not wish to provide the information to the particular requester,
+///   or a name server may not wish to perform a particular operation (e.g., zone transfer) for
+///   particular data.
+///
+#[derive(PrimitiveEnum, Clone, Copy, Debug, Default)]
 pub enum ResponseCode {
+    #[default]
     NoError = 0,
+    FormatError = 1,
+    ServerFailure = 2,
+    NameError = 3,
     NotImplemented = 4,
+    Refused = 5,
 }
 
 pub const DNS_HEADER_SIZE: usize = 12;

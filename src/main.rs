@@ -12,16 +12,28 @@ fn main() {
 
     loop {
         match udp_socket.recv_from(&mut buf) {
-            Ok((size, source)) => {
-                // TODO: don't panic if error
-                let query = Message::unpack(&buf[0..size]).unwrap();
-                udp_socket
-                    .send_to(&query.resolve().unwrap().pack().unwrap(), source)
-                    .expect("Failed to send response");
-            }
+            Ok((size, source)) => match Message::unpack(&buf[0..size]) {
+                Ok(query) => {
+                    let bytes = query
+                        .resolve()
+                        .and_then(|res| res.pack())
+                        .or_else(|e| {
+                            eprintln!("Cannot resolve query: {}", e);
+                            Message::server_failure().pack()
+                        })
+                        .unwrap_or_else(|e| panic!("Cannot pack message: {}", e));
+
+                    udp_socket.send_to(&bytes, source).unwrap();
+                }
+                Err(e) => {
+                    eprintln!("Cannot unpack message: {}", e);
+                    udp_socket
+                        .send_to(&Message::format_error().pack().unwrap(), source)
+                        .unwrap();
+                }
+            },
             Err(e) => {
-                eprintln!("Error receiving data: {}", e);
-                break;
+                panic!("Error receiving data: {}", e);
             }
         }
     }
