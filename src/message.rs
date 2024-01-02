@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{ensure, Result};
 use packed_struct::prelude::*;
 
 use self::{
@@ -13,71 +13,73 @@ mod labels;
 mod question;
 mod rr;
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Message {
     header: Header,
-    question: Option<Question>,
-    answer: Option<answer::Answer>,
+    questions: Vec<Question>,
+    answers: Vec<Answer>,
 }
 
 impl Message {
     pub fn unpack(query: &[u8]) -> Result<Message> {
-        let question = Question::unpack(&query[DNS_HEADER_SIZE..])?;
+        let header = Header::unpack(query)?;
+
+        let mut ptr = DNS_HEADER_SIZE;
+        let mut questions = Vec::with_capacity(header.qdcount as usize);
+        for _ in 0..header.qdcount {
+            ensure!(query.len() > ptr, "Query is too short");
+            let question = Question::unpack(&query[ptr..])?;
+            ptr += question.len();
+            questions.push(question);
+        }
+
+        let answers = Vec::with_capacity(questions.len());
+
         Ok(Message {
-            header: Header::unpack(query)?,
-            question: Some(question),
-            answer: None,
+            header,
+            questions,
+            answers,
         })
     }
 
     pub fn pack(&self) -> Result<Vec<u8>> {
         let len = DNS_HEADER_SIZE
-            + self.question.as_ref().map_or(0, |q| q.len())
-            + self.answer.as_ref().map_or(0, |q| q.len());
+            + self.questions.iter().map(|q| q.len()).sum::<usize>()
+            + self.answers.iter().map(|a| a.len()).sum::<usize>();
 
         let mut buf = vec![0; len];
-        let mut wrote = 0;
-
-        let next = DNS_HEADER_SIZE;
+        let mut next = DNS_HEADER_SIZE;
         self.header.pack_to_slice(&mut buf[..next])?;
-        wrote += next;
+        let mut wrote = next;
 
-        let (question, next) = match self.question.as_ref() {
-            Some(q) => (q, q.len()),
-            None => return Ok(buf),
-        };
-        question.pack(&mut buf[wrote..wrote + next])?;
-        wrote += next;
-
-        let (answer, next) = match self.answer.as_ref() {
-            Some(a) => (a, a.len()),
-            None => return Ok(buf),
-        };
-        answer.pack(&mut buf[wrote..wrote + next])?;
-
+        for question in &self.questions {
+            next = question.len();
+            question.pack(&mut buf[wrote..wrote + next])?;
+            wrote += next;
+        }
+        for answer in &self.answers {
+            next = answer.len();
+            answer.pack(&mut buf[wrote..wrote + next])?;
+            wrote += next;
+        }
         Ok(buf)
     }
 
-    pub fn resolve(&self) -> Result<Message> {
-        let answer = Answer::resolve(
-            self.question
-                .as_ref()
-                .ok_or(anyhow!("Cannot resolve question because it is `None`"))?,
-        )?;
+    pub fn resolve(mut self) -> Result<Self> {
+        self.answers = self
+            .questions
+            .iter()
+            .map(Answer::resolve)
+            .collect::<Result<_>>()?;
 
-        let mut header = self.header.clone();
-        header.qr = Indicator::Response;
-        header.ancount = header.qdcount;
-        header.rcode = match header.opcode.into() {
+        self.header.qr = Indicator::Response;
+        self.header.ancount = self.header.qdcount;
+        self.header.rcode = match self.header.opcode.into() {
             0 => ResponseCode::NoError,
             _ => ResponseCode::NotImplemented,
         };
 
-        Ok(Message {
-            header,
-            question: self.question.clone(),
-            answer: Some(answer),
-        })
+        Ok(self)
     }
 
     pub fn format_error() -> Message {
@@ -90,5 +92,14 @@ impl Message {
         let mut msg = Message::default();
         msg.header.rcode = ResponseCode::ServerFailure;
         msg
+    }
+
+    pub fn with_id(mut self, id: u16) -> Message {
+        self.header.id = id;
+        self
+    }
+
+    pub fn get_id(&self) -> u16 {
+        self.header.id
     }
 }
