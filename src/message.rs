@@ -13,6 +13,7 @@ mod labels;
 mod question;
 mod rr;
 
+#[derive(Default)]
 pub struct Message {
     header: Header,
     question: Option<Question>,
@@ -80,22 +81,14 @@ impl Message {
     }
 
     pub fn format_error() -> Message {
-        let mut header = Header::default();
-        header.rcode = ResponseCode::FormatError;
-        Message {
-            header,
-            question: None,
-            answer: None,
-        }
+        let mut msg = Message::default();
+        msg.header.rcode = ResponseCode::FormatError;
+        msg
     }
 
     pub fn server_failure() -> Message {
-        let mut header = Header::default();
-        header.rcode = ResponseCode::ServerFailure;
-        Message {
-            header,
-            question: None,
-            answer: None,
-        }
+        let mut msg = Message::default();
+        msg.header.rcode = ResponseCode::ServerFailure;
+        msg
     }
 }
