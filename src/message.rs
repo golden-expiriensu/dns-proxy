@@ -8,7 +8,7 @@ use self::{
 };
 
 mod answer;
-mod header;
+pub mod header;
 mod labels;
 mod question;
 mod rr;

@@ -1,3 +1,6 @@
+use std::mem::size_of;
+
+use byteorder::{BigEndian, ByteOrder};
 use packed_struct::prelude::*;
 
 /// Packet Identifier (ID)	          | A random ID assigned to query packets. Response packets must reply with the same ID.
@@ -17,7 +20,7 @@ use packed_struct::prelude::*;
 #[packed_struct(size_bytes = 12, bit_numbering = "msb0", endian = "lsb")]
 pub struct Header {
     #[packed_field(bits = "0..=15")]
-    id: u16,
+    pub id: u16,
     #[packed_field(bits = "16", ty = "enum")]
     pub qr: Indicator,
     #[packed_field(bits = "17..=20")]
@@ -123,5 +126,14 @@ impl Header {
             return Err(PackingError::BufferTooSmall);
         }
         Ok(Header::unpack_from_slice(&query[..DNS_HEADER_SIZE])?)
+    }
+
+    pub fn unpack_id(query: &[u8]) -> Result<u16, PackingError> {
+        let id_size = size_of::<u16>();
+        if query.len() < id_size {
+            return Err(PackingError::BufferTooSmall);
+        }
+        let id = BigEndian::read_u16(&query[0..id_size]);
+        Ok(id)
     }
 }

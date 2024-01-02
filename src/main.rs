@@ -1,6 +1,6 @@
 use std::net::{Ipv4Addr, SocketAddrV4, UdpSocket};
 
-use crate::message::Message;
+use crate::message::{header::Header, Message};
 
 mod message;
 
@@ -14,22 +14,23 @@ fn main() {
         match udp_socket.recv_from(&mut buf) {
             Ok((size, source)) => match Message::unpack(&buf[0..size]) {
                 Ok(query) => {
+                    let id = query.get_id();
                     let bytes = query
                         .resolve()
                         .and_then(|res| res.pack())
                         .or_else(|e| {
                             eprintln!("Cannot resolve query: {}", e);
-                            Message::server_failure().pack()
+                            Message::server_failure().with_id(id).pack()
                         })
                         .unwrap_or_else(|e| panic!("Cannot pack message: {}", e));
 
                     udp_socket.send_to(&bytes, source).unwrap();
                 }
                 Err(e) => {
-                    eprintln!("Cannot unpack message: {}", e);
-                    udp_socket
-                        .send_to(&Message::format_error().pack().unwrap(), source)
-                        .unwrap();
+                    println!("Cannot unpack message: {}", e);
+                    let id = Header::unpack_id(&buf[0..size]).unwrap_or_default();
+                    let msg = Message::format_error().with_id(id);
+                    udp_socket.send_to(&msg.pack().unwrap(), source).unwrap();
                 }
             },
             Err(e) => {
