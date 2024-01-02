@@ -17,7 +17,7 @@ use packed_struct::prelude::*;
 /// Authority Record Count (NSCOUNT)  | Number of records in the Authority section.
 /// Additional Record Count (ARCOUNT) | Number of records in the Additional section.
 #[derive(Clone, Copy, Debug, Default, PackedStruct)]
-#[packed_struct(size_bytes = 12, bit_numbering = "msb0", endian = "lsb")]
+#[packed_struct(size_bytes = 12, bit_numbering = "msb0", endian = "msb")]
 pub struct Header {
     #[packed_field(bits = "0..=15")]
     pub id: u16,
