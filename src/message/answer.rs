@@ -87,7 +87,7 @@ mod tests {
     #[test]
     fn resolve() {
         let raw = b"\x06google\x03com\x00\x00\x01\x00\x01";
-        let question = Question::unpack(raw).unwrap();
+        let question = Question::unpack(raw, &mut 0).unwrap();
         let answer = Answer::resolve(&question).unwrap();
         assert_eq!(answer.name.to_string(), "google.com");
         assert_eq!(answer.atype, rr::Type::A);
@@ -100,7 +100,7 @@ mod tests {
     #[test]
     fn pack() {
         let raw = b"\x06google\x03com\x00\x00\x01\x00\x01";
-        let question = Question::unpack(raw).unwrap();
+        let question = Question::unpack(raw, &mut 0).unwrap();
         let answer = Answer::resolve(&question).unwrap();
         let mut buf = vec![0u8; answer.len()];
         answer.pack(&mut buf).unwrap();

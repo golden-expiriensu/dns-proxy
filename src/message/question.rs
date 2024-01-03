@@ -16,13 +16,13 @@ const METADATA_SIZE: usize = size_of::<rr::Type>() + size_of::<rr::Class>();
 pub const BUF_LEN_INVALID_ERR: &'static str = "Buffer length is invalid, expected exact match";
 
 impl Question {
-    pub fn unpack(buf: &[u8]) -> Result<Self> {
-        let labels = Labels::unpack(buf)?;
+    pub fn unpack(buf: &[u8], ptr: &mut usize) -> Result<Self> {
+        let labels = Labels::unpack(buf, ptr)?;
         let mut metadata = Cursor::new(vec![0u8; METADATA_SIZE]);
-        let ll = labels.len();
         metadata
             .get_mut()
-            .clone_from_slice(&buf[ll..ll + METADATA_SIZE]);
+            .clone_from_slice(&buf[*ptr..*ptr + METADATA_SIZE]);
+        *ptr += METADATA_SIZE;
 
         Ok(Question {
             domain: labels,
@@ -65,34 +65,74 @@ mod tests {
 
     #[test]
     fn unpack() {
-        let question_raw = b"\x06google\x03com\x00\x00\x01\x00\x01";
-        let question = Question::unpack(question_raw).unwrap();
-        assert_eq!(question_raw.len(), question.len());
-        assert_eq!(question.qtype, rr::Type::A);
-        assert_eq!(question.qclass, rr::Class::In);
+        let raw = b"\x06google\x03com\x00\x00\x01\x00\x01";
+        let question = Question::unpack(raw, &mut 0).unwrap();
+        assert_eq!(raw.len(), question.len());
+        assert_eq!(rr::Type::A, question.qtype);
+        assert_eq!(rr::Class::In, question.qclass);
     }
 
     #[test]
-    fn unpack_invalid_unsupported_class() {
-        let question_raw = b"\x06google\x03com\x00\x00\x01\x01\x01";
-        let question = Question::unpack(question_raw);
+    fn unpack_with_pointer() {
+        let default_metadata = b"\x00\x01\x00\x01";
+        // F.ISI.ARPA, FOO.F.ISI.ARPA, ARPA
+        // 1. a sequence of labels ending in a zero octet
+        let raw_0 = b"\x01F\x03ISI\x04ARPA\x00";
+        // 0xC0 == 0b1100_0000
+        // 2. a sequence of labels ending with a pointer
+        let raw_1 = b"\x03FOO\xC0\x00";
+        // 0x06 bytes is offset to ARPA in raw_0
+        // 3. a pointer
+        let raw_2 = b"\xC0\x06";
+        let raw = [
+            &raw_0[..],
+            &default_metadata[..],
+            &raw_1[..],
+            &default_metadata[..],
+            &raw_2[..],
+            &default_metadata[..],
+        ]
+        .concat();
+
+        let mut ptr = 0;
+
+        let question_0 = Question::unpack(&raw, &mut ptr).unwrap();
+        assert_eq!("F.ISI.ARPA", question_0.domain.to_string());
+        assert_eq!(rr::Type::A, question_0.qtype);
+        assert_eq!(rr::Class::In, question_0.qclass);
+
+        let question_1 = Question::unpack(&raw, &mut ptr).unwrap();
+        assert_eq!("FOO.F.ISI.ARPA", question_1.domain.to_string());
+        assert_eq!(rr::Type::A, question_1.qtype);
+        assert_eq!(rr::Class::In, question_1.qclass);
+
+        let question_2 = Question::unpack(&raw, &mut ptr).unwrap();
+        assert_eq!("ARPA", question_2.domain.to_string());
+        assert_eq!(rr::Type::A, question_2.qtype);
+        assert_eq!(rr::Class::In, question_2.qclass);
+    }
+
+    #[test]
+    fn unpack_unsupported_class() {
+        let raw = b"\x06google\x03com\x00\x00\x01\x01\x01";
+        let question = Question::unpack(raw, &mut 0);
         assert!(question.is_err());
     }
 
     #[test]
     fn pack() {
-        let question_raw = b"\x06google\x03com\x00\x00\x01\x00\x01";
-        let question = Question::unpack(question_raw).unwrap();
-        let mut buf = vec![0u8; question_raw.len()];
+        let raw = b"\x06google\x03com\x00\x00\x01\x00\x01";
+        let question = Question::unpack(raw, &mut 0).unwrap();
+        let mut buf = vec![0u8; raw.len()];
         question.pack(&mut buf).unwrap();
-        assert_eq!(question_raw, &buf[..]);
+        assert_eq!(raw, &buf[..]);
     }
 
     #[test]
     fn pack_invalid_input() {
-        let question_raw = b"\x06google\x03com\x00\x00\x01\x00\x01";
-        let question = Question::unpack(question_raw).unwrap();
-        let mut buf = vec![0u8; question_raw.len() - 1];
+        let raw = b"\x06google\x03com\x00\x00\x01\x00\x01";
+        let question = Question::unpack(raw, &mut 0).unwrap();
+        let mut buf = vec![0u8; raw.len() - 1];
         assert_eq!(
             question.pack(&mut buf).unwrap_err().to_string(),
             BUF_LEN_INVALID_ERR,

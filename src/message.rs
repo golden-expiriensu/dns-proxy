@@ -25,13 +25,12 @@ impl Message {
         let header = Header::unpack(query)?;
 
         let mut ptr = DNS_HEADER_SIZE;
-        let mut questions = Vec::with_capacity(header.qdcount as usize);
-        for _ in 0..header.qdcount {
-            ensure!(query.len() > ptr, "Query is too short");
-            let question = Question::unpack(&query[ptr..])?;
-            ptr += question.len();
-            questions.push(question);
-        }
+        let questions = (0..header.qdcount)
+            .map(|_| {
+                ensure!(query.len() > ptr, "Query is too short");
+                Question::unpack(query, &mut ptr)
+            })
+            .collect::<Result<Vec<_>>>()?;
 
         let answers = Vec::with_capacity(questions.len());
 
