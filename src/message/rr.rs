@@ -23,8 +23,9 @@ impl std::fmt::Display for Error {
 /// ------+-----------------------------------------
 /// A     | a host address
 #[repr(u16)]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum Type {
+    #[default]
     A = 1,
 }
 
@@ -49,8 +50,9 @@ impl Into<u16> for Type {
 /// -------+-----------------------------------------
 /// IN     | an Internet host
 #[repr(u16)]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum Class {
+    #[default]
     In = 1,
 }
 

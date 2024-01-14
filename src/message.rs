@@ -1,4 +1,4 @@
-use anyhow::{ensure, Result};
+use anyhow::Result;
 use packed_struct::prelude::*;
 
 use self::{
@@ -11,9 +11,10 @@ mod answer;
 pub mod header;
 mod labels;
 mod question;
+pub mod resolver;
 mod rr;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Message {
     header: Header,
     questions: Vec<Question>,
@@ -26,13 +27,15 @@ impl Message {
 
         let mut ptr = DNS_HEADER_SIZE;
         let questions = (0..header.qdcount)
-            .map(|_| {
-                ensure!(query.len() > ptr, "Query is too short");
-                Question::unpack(query, &mut ptr)
-            })
+            .map(|_| Question::unpack(query, &mut ptr))
             .collect::<Result<Vec<_>>>()?;
 
-        let answers = Vec::with_capacity(questions.len());
+        let answers = match header.qr {
+            Indicator::Query => Vec::with_capacity(questions.len()),
+            Indicator::Response => (0..header.ancount)
+                .map(|_| Answer::unpack(query, &mut ptr))
+                .collect::<Result<Vec<_>>>()?,
+        };
 
         Ok(Message {
             header,
@@ -64,36 +67,19 @@ impl Message {
         Ok(buf)
     }
 
-    pub fn resolve(mut self) -> Result<Self> {
-        self.answers = self
-            .questions
-            .iter()
-            .map(Answer::resolve)
-            .collect::<Result<_>>()?;
-
-        self.header.qr = Indicator::Response;
-        self.header.ancount = self.header.qdcount;
-        self.header.rcode = match self.header.opcode.into() {
-            0 => ResponseCode::NoError,
-            _ => ResponseCode::NotImplemented,
-        };
-
-        Ok(self)
-    }
-
-    pub fn format_error() -> Message {
-        let mut msg = Message::default();
+    pub fn new_client_err() -> Self {
+        let mut msg = Self::default();
         msg.header.rcode = ResponseCode::FormatError;
         msg
     }
 
-    pub fn server_failure() -> Message {
-        let mut msg = Message::default();
+    pub fn new_server_err() -> Self {
+        let mut msg = Self::default();
         msg.header.rcode = ResponseCode::ServerFailure;
         msg
     }
 
-    pub fn with_id(mut self, id: u16) -> Message {
+    pub fn with_id(mut self, id: u16) -> Self {
         self.header.id = id;
         self
     }

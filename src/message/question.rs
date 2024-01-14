@@ -3,9 +3,11 @@ use std::{io::Cursor, mem::size_of};
 use anyhow::{ensure, Result};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
+use crate::errors::DnsError;
+
 use super::{labels::Labels, rr};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct Question {
     pub domain: Labels,
     pub qtype: rr::Type,
@@ -13,16 +15,22 @@ pub struct Question {
 }
 
 const METADATA_SIZE: usize = size_of::<rr::Type>() + size_of::<rr::Class>();
-pub const BUF_LEN_INVALID_ERR: &'static str = "Buffer length is invalid, expected exact match";
 
 impl Question {
     pub fn unpack(buf: &[u8], ptr: &mut usize) -> Result<Self> {
         let labels = Labels::unpack(buf, ptr)?;
         let mut metadata = Cursor::new(vec![0u8; METADATA_SIZE]);
-        metadata
-            .get_mut()
-            .clone_from_slice(&buf[*ptr..*ptr + METADATA_SIZE]);
-        *ptr += METADATA_SIZE;
+        let from = *ptr;
+        let to = from + METADATA_SIZE;
+        ensure!(
+            buf.len() >= to,
+            DnsError::BufLenSmall {
+                min: to,
+                act: buf.len(),
+            },
+        );
+        metadata.get_mut().clone_from_slice(&buf[from..to]);
+        *ptr = to;
 
         Ok(Question {
             domain: labels,
@@ -32,7 +40,13 @@ impl Question {
     }
 
     pub fn pack(&self, buf: &mut [u8]) -> Result<()> {
-        ensure!(buf.len() == self.len(), BUF_LEN_INVALID_ERR);
+        ensure!(
+            buf.len() == self.len(),
+            DnsError::BufLenNotEq {
+                exp: self.len(),
+                act: buf.len()
+            }
+        );
         self.domain.pack(&mut buf[..self.domain.len()])?;
 
         let mut cursor = Cursor::new(vec![0u8; METADATA_SIZE]);
@@ -135,7 +149,11 @@ mod tests {
         let mut buf = vec![0u8; raw.len() - 1];
         assert_eq!(
             question.pack(&mut buf).unwrap_err().to_string(),
-            BUF_LEN_INVALID_ERR,
+            DnsError::BufLenNotEq {
+                exp: raw.len(),
+                act: raw.len() - 1
+            }
+            .to_string(),
         );
     }
 }

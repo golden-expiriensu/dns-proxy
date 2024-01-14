@@ -107,7 +107,7 @@ pub enum RecursionAvailable {
 ///   or a name server may not wish to perform a particular operation (e.g., zone transfer) for
 ///   particular data.
 ///
-#[derive(PrimitiveEnum, Clone, Copy, Debug, Default)]
+#[derive(PrimitiveEnum, Clone, Copy, Debug, Default, PartialEq)]
 pub enum ResponseCode {
     #[default]
     NoError = 0,

@@ -1,13 +1,13 @@
-use std::{io::Cursor, mem::size_of, net::Ipv4Addr};
+use std::{io::Cursor, mem::size_of};
 
-use crate::message::question::BUF_LEN_INVALID_ERR;
+use crate::errors::DnsError;
 
-use super::{labels::Labels, question::Question, rr};
+use super::{labels::Labels, rr};
 
 use anyhow::{ensure, Result};
-use byteorder::{BigEndian, WriteBytesExt};
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Answer {
     name: Labels,
     atype: rr::Type,
@@ -17,43 +17,53 @@ pub struct Answer {
     data: Vec<u8>,
 }
 
-const DEFAULT_TTL: u32 = 3600;
-const MIN_DATA_LEN: usize = 4;
 const METADATA_SIZE: usize =
     size_of::<rr::Type>() + size_of::<rr::Class>() + size_of::<u32>() + size_of::<u16>();
 
 impl Answer {
-    pub fn resolve(question: &Question) -> Result<Self> {
-        let mut answer = Answer {
-            name: question.domain.clone(),
-            atype: question.qtype,
-            aclass: question.qclass,
-            ttl: DEFAULT_TTL,
-            length: 0,
-            data: Vec::with_capacity(MIN_DATA_LEN),
-        };
+    pub fn unpack(buf: &[u8], ptr: &mut usize) -> Result<Self> {
+        let name = Labels::unpack(buf, ptr)?;
 
-        match question.qtype {
-            rr::Type::A => answer.resolve_ipv4()?,
-        }
+        let mut metadata = Cursor::new(vec![0u8; METADATA_SIZE]);
+        let mut at = *ptr;
+        ensure!(
+            buf.len() > at + METADATA_SIZE,
+            DnsError::BufLenSmall {
+                min: at + METADATA_SIZE,
+                act: buf.len()
+            }
+        );
+        metadata
+            .get_mut()
+            .clone_from_slice(&buf[at..at + METADATA_SIZE]);
+        let atype = metadata.read_u16::<BigEndian>()?.try_into()?;
+        let aclass = metadata.read_u16::<BigEndian>()?.try_into()?;
+        let ttl = metadata.read_u32::<BigEndian>()?;
+        let length = metadata.read_u16::<BigEndian>()?;
+        at += METADATA_SIZE;
 
-        Ok(answer)
-    }
+        let mut data = Vec::with_capacity(length as usize);
+        Vec::extend_from_slice(&mut data, &buf[at..at + length as usize]);
+        *ptr = at + length as usize;
 
-    fn resolve_ipv4(&mut self) -> Result<()> {
-        self.length = 4;
-        let addr: Ipv4Addr;
-        match self.name.to_string().as_str() {
-            "google.com" => addr = Ipv4Addr::new(142, 250, 188, 14),
-            "codecrafters.io" => addr = Ipv4Addr::new(76, 76, 21, 21),
-            _ => addr = Ipv4Addr::new(8, 8, 8, 8),
-        }
-        self.data = addr.octets().to_vec();
-        Ok(())
+        Ok(Answer {
+            name,
+            atype,
+            aclass,
+            ttl,
+            length,
+            data,
+        })
     }
 
     pub fn pack(&self, buf: &mut [u8]) -> Result<()> {
-        ensure!(buf.len() == self.len(), BUF_LEN_INVALID_ERR);
+        ensure!(
+            buf.len() == self.len(),
+            DnsError::BufLenNotEq {
+                exp: self.len(),
+                act: buf.len()
+            }
+        );
         let mut wrote = 0;
 
         let mut next = self.name.len();
@@ -82,30 +92,32 @@ impl Answer {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::message::question::Question;
 
-    #[test]
-    fn resolve() {
-        let raw = b"\x06google\x03com\x00\x00\x01\x00\x01";
-        let question = Question::unpack(raw, &mut 0).unwrap();
-        let answer = Answer::resolve(&question).unwrap();
-        assert_eq!(answer.name.to_string(), "google.com");
-        assert_eq!(answer.atype, rr::Type::A);
-        assert_eq!(answer.aclass, rr::Class::In);
-        assert_eq!(answer.ttl, DEFAULT_TTL);
-        assert_eq!(answer.length, 4);
-        assert_eq!(answer.data, vec![142, 250, 188, 14])
-    }
+    use super::*;
 
     #[test]
     fn pack() {
         let raw = b"\x06google\x03com\x00\x00\x01\x00\x01";
+        let ttl = 0xFFDDBBAA;
+        let data = vec![127, 0, 0, 1];
         let question = Question::unpack(raw, &mut 0).unwrap();
-        let answer = Answer::resolve(&question).unwrap();
+        let answer = Answer {
+            name: question.domain,
+            atype: question.qtype,
+            aclass: question.qclass,
+            ttl,
+            length: data.len() as u16,
+            data: data.clone(),
+        };
+
+        let mut expect = Vec::from_iter(raw.iter().cloned());
+        expect.extend_from_slice(&vec![0xFF, 0xDD, 0xBB, 0xAA, 0x00, 0x04]);
+        expect.extend_from_slice(&data);
+
         let mut buf = vec![0u8; answer.len()];
         answer.pack(&mut buf).unwrap();
-        let mut expect = Vec::from_iter(raw.iter().cloned());
-        expect.extend_from_slice(&vec![0, 0, 14, 16, 0, 4, 142, 250, 188, 14]);
+
         assert_eq!(buf, expect);
     }
 }

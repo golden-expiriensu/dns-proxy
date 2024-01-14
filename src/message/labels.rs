@@ -1,16 +1,16 @@
 use anyhow::{ensure, Result};
-use std::{io::Write, ops::DerefMut};
+use std::{fmt::Display, io::Write, ops::DerefMut};
 
-use crate::message::{labels::pointer::DomainPointer, question::BUF_LEN_INVALID_ERR};
+use crate::{errors::DnsError, message::labels::pointer::DomainPointer};
 
 mod pointer;
-
-#[derive(Debug, PartialEq)]
-pub struct Labels(Vec<String>);
 
 const TERMINATOR_BYTE: u8 = 0x00;
 const TERMINATOR_BYTE_SIZE: usize = 1;
 const DOMAIN_NAME_LEN_BYTE_SIZE: usize = 1;
+
+#[derive(Debug, Default, PartialEq)]
+pub struct Labels(Vec<String>);
 
 impl Labels {
     pub fn unpack(buf: &[u8], ptr: &mut usize) -> Result<Self> {
@@ -41,17 +41,19 @@ impl Labels {
             words.push(String::from_utf8_lossy(&buf[at..at + word_len]).into());
             at += word_len;
 
-            ensure!(
-                at < buf.len(),
-                "Invalid domain encoding discovered at byte {}",
-                at
-            );
+            ensure!(at < buf.len(), DnsError::InvalidEncoding { at });
             *ptr = at;
         }
     }
 
     pub fn pack(&self, buf: &mut [u8]) -> Result<()> {
-        ensure!(buf.len() == self.len(), BUF_LEN_INVALID_ERR);
+        ensure!(
+            buf.len() == self.len(),
+            DnsError::BufLenNotEq {
+                exp: self.len(),
+                act: buf.len()
+            }
+        );
 
         let mut wrote = 0;
         for word in &self.0 {
@@ -72,9 +74,11 @@ impl Labels {
             .sum::<usize>()
             + TERMINATOR_BYTE_SIZE
     }
+}
 
-    pub fn to_string(&self) -> String {
-        self.0.join(".")
+impl Display for Labels {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.join("."))
     }
 }
 
@@ -86,6 +90,8 @@ impl Clone for Labels {
 
 #[cfg(test)]
 mod tests {
+    use crate::errors::DnsError;
+
     use super::*;
 
     #[test]
@@ -109,7 +115,10 @@ mod tests {
     fn unpack_invalid_domain_encoding() {
         let raw = b"\x06google\x03com";
         let labels = Labels::unpack(raw, &mut 0);
-        assert!(labels.is_err());
+        assert_eq!(
+            DnsError::InvalidEncoding { at: 11 }.to_string(),
+            labels.unwrap_err().to_string()
+        );
     }
 
     #[test]
@@ -128,7 +137,11 @@ mod tests {
         let mut buf = vec![0u8; raw.len() - 1];
         assert_eq!(
             labels.pack(&mut buf).unwrap_err().to_string(),
-            BUF_LEN_INVALID_ERR,
+            DnsError::BufLenNotEq {
+                exp: raw.len(),
+                act: raw.len() - 1
+            }
+            .to_string(),
         );
     }
 }
