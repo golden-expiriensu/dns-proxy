@@ -46,8 +46,8 @@ impl Message {
 
     pub fn pack(&self) -> Result<Vec<u8>> {
         let len = DNS_HEADER_SIZE
-            + self.questions.iter().map(|q| q.len()).sum::<usize>()
-            + self.answers.iter().map(|a| a.len()).sum::<usize>();
+            + self.questions.iter().map(Question::len).sum::<usize>()
+            + self.answers.iter().map(Answer::len).sum::<usize>();
 
         let mut buf = vec![0; len];
         let mut next = DNS_HEADER_SIZE;

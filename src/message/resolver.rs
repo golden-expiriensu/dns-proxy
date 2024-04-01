@@ -1,4 +1,4 @@
-use std::net::UdpSocket;
+use std::net::{ToSocketAddrs, UdpSocket};
 
 use anyhow::{bail, ensure, Result};
 
@@ -9,20 +9,19 @@ use crate::{
 
 use super::{question::Question, Message};
 
-const READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
+const READ_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(500);
 
 pub struct Resolver(UdpSocket);
 
 impl Resolver {
-    pub fn connect(address: String) -> Result<Self> {
-        let socket = UdpSocket::bind("0.0.0.0:0")?;
+    pub fn connect(address: impl ToSocketAddrs) -> Result<Self> {
+        let socket = UdpSocket::bind("localhost:0")?;
         socket.set_read_timeout(Some(READ_TIMEOUT))?;
         socket.connect(address)?;
         Ok(Resolver(socket))
     }
 
     pub fn resolve(&self, mut msg: Message) -> Result<Message> {
-        msg.header.qr = Indicator::Response;
         let mut buf = [0; 512];
         let mut template = Message {
             header: msg.header.clone(),
@@ -45,7 +44,7 @@ impl Resolver {
 
             if header.rcode != ResponseCode::NoError {
                 msg.header.rcode = header.rcode;
-                return Ok(msg);
+                break;
             }
             ensure!(header.ancount > 0, DnsError::ResolverFailed(header));
 
@@ -56,6 +55,8 @@ impl Resolver {
             msg.answers.push(answer);
             msg.header.ancount += 1;
         }
+
+        msg.header.qr = Indicator::Response;
         Ok(msg)
     }
 }
