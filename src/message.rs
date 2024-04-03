@@ -49,7 +49,7 @@ impl Message {
             + self.questions.iter().map(Question::len).sum::<usize>()
             + self.answers.iter().map(Answer::len).sum::<usize>();
 
-        let mut buf = vec![0; len];
+        let mut buf = vec![0u8; len];
         let mut next = DNS_HEADER_SIZE;
         self.header.pack_to_slice(&mut buf[..next])?;
         let mut wrote = next;

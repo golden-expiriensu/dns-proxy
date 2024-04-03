@@ -26,7 +26,7 @@ fn main() -> Result<()> {
         bail!(DnsError::ResolverNotSpecified)
     };
 
-    let mut buf = [0; 512];
+    let mut buf = [0u8; 512];
     loop {
         let (size, source) = udp_socket.recv_from(&mut buf)?;
         match Message::unpack(&buf[0..size]) {

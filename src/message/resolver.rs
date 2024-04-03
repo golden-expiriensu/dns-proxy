@@ -22,7 +22,7 @@ impl Resolver {
     }
 
     pub fn resolve(&self, mut msg: Message) -> Result<Message> {
-        let mut buf = [0; 512];
+        let mut buf = [0u8; 512];
         let mut template = Message {
             header: msg.header.clone(),
             questions: vec![Question::default()],
